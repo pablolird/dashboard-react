@@ -1,4 +1,5 @@
-import * as React from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 import {
   Field,
   FieldContent,
@@ -81,43 +82,176 @@ export function Calendar24() {
   );
 }
 
-export default function ActivityForm() {
+export default function ActivityForm({ request, onSuccess }) {
+  const [technicians, setTechnicians] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const apiUrl = import.meta.env.VITE_API_BASE_URL;
+
+  // Form state
+  const [selectedTechnician, setSelectedTechnician] = useState("");
+  const [notes, setNotes] = useState("");
+  const [selectedDate, setSelectedDate] = useState(undefined);
+  const [selectedTime, setSelectedTime] = useState("10:30");
+
+  useEffect(() => {
+    const fetchTechnicians = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`${apiUrl}/v1/technicians`);
+        setTechnicians(response.data);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch technicians:", err);
+        setError("Failed to load technicians");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTechnicians();
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedTechnician) {
+      setError("Please select a technician");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      // Step 1: Assign technician (also sets status to ASSIGNED)
+      await axios.patch(
+        `${apiUrl}/v1/service-requests/${request.request_id}/assign`,
+        { technician_id: selectedTechnician }
+      );
+
+      // Step 2: Add technician notes if provided
+      if (notes.trim()) {
+        await axios.patch(
+          `${apiUrl}/v1/service-requests/${request.request_id}/technician-notes`,
+          { notes: notes.trim() }
+        );
+      }
+
+      // Step 3: Update status to SCHEDULED
+      await axios.patch(
+        `${apiUrl}/v1/service-requests/${request.request_id}/status`,
+        { status: "SCHEDULED" }
+      );
+
+      // Success - call the onSuccess callback to close dialog
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (err) {
+      console.error("Failed to create activity:", err);
+      setError(err.response?.data?.message || "Failed to create activity");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-md p-5 rounded-md shadow-sm bg-card">
-      <form className="gap-5 flex flex-col">
+      <form id="activity-form" className="gap-5 flex flex-col" onSubmit={handleSubmit}>
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="checkout-7j9-optional-comments">
-              Description
+            <FieldLabel htmlFor="activity-notes">
+              Notes
             </FieldLabel>
             <Textarea
-              id="checkout-7j9-optional-comments"
-              placeholder="Add a reformulated description of the problem"
+              id="activity-notes"
+              placeholder="Add notes about the activity or schedule"
               className="resize-none"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              disabled={submitting}
             />
           </Field>
         </FieldGroup>
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="checkout-exp-month-ts6">Technician</FieldLabel>
-            <Select defaultValue="">
-              <SelectTrigger id="checkout-exp-month-ts6">
-                <SelectValue placeholder="Technician" />
+            <FieldLabel htmlFor="technician-select">Technician</FieldLabel>
+            <Select 
+              value={selectedTechnician} 
+              onValueChange={setSelectedTechnician}
+              disabled={loading || submitting}
+            >
+              <SelectTrigger id="technician-select">
+                <SelectValue 
+                  placeholder={
+                    loading 
+                      ? "Loading technicians..." 
+                      : error 
+                      ? "Error loading technicians" 
+                      : "Select technician"
+                  } 
+                />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Technician 1">Technician 01</SelectItem>
-                <SelectItem value="Technician 2">Technician 02</SelectItem>
-                <SelectItem value="Technician 3">Technician 03</SelectItem>
-                <SelectItem value="Technician 4">Technician 04</SelectItem>
-                <SelectItem value="Technician 5">Technician 05</SelectItem>
+                {technicians.map((technician) => (
+                  <SelectItem key={technician.id} value={technician.id}>
+                    {technician.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            {error && (
+              <p className="text-sm text-destructive mt-1">{error}</p>
+            )}
           </Field>
         </FieldGroup>
         <FieldGroup>
-          <Calendar24 />
+          <div className="flex gap-4">
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="date-picker" className="px-1">
+                Date
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    id="date-picker"
+                    className="w-32 bg-card justify-between font-normal"
+                    disabled={submitting}
+                  >
+                    {selectedDate ? selectedDate.toLocaleDateString() : "Select date"}
+                    <ChevronDownIcon />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    captionLayout="dropdown"
+                    onSelect={setSelectedDate}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="time-picker" className="px-1">
+                Time
+              </Label>
+              <Input
+                type="time"
+                id="time-picker"
+                step="1"
+                value={selectedTime}
+                onChange={(e) => setSelectedTime(e.target.value)}
+                className="bg-card appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                disabled={submitting}
+              />
+            </div>
+          </div>
         </FieldGroup>
       </form>
     </div>
   );
-}
+} 

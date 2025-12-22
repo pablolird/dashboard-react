@@ -25,7 +25,7 @@ export function DataTable({ columns, data }) {
   });
 
   return (
-    <div className="w-4xl mx-10 h-8/11 flex flex-col gap-4">
+    <div className="w-5xl mx-10 h-9/11 flex flex-col gap-4">
       <div className="rounded-md flex flex-2/3 flex-col overflow-hidden">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">

@@ -8,7 +8,7 @@ import useFetch from "./hooks/UseFetch";
 const RequestContext = createContext();
 
 const RequestProvider = ({ children }) => {
-  const apiUrl = "http://localhost:3000";
+  const apiUrl = import.meta.env.VITE_API_BASE_URL;
   const socketRef = useRef(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
 
@@ -28,7 +28,7 @@ const RequestProvider = ({ children }) => {
         request_id: item.id,
         request_status: item.status,
         request_type: item.type,
-        company: "XYZ Corp.",
+        company: item.asset.company_name,
         requester: item.client.name,
         device_model: item.asset.model,
         description: item.description_preview,
@@ -109,6 +109,8 @@ const RequestProvider = ({ children }) => {
       const res = await axios.get(`${apiUrl}/v1/service-requests/${requestId}`);
       const item = res.data;
       
+      console.log(res);
+
       const date = new Date(item.created_at);
       const formatted = `${(date.getMonth() + 1)
         .toString()
@@ -122,7 +124,7 @@ const RequestProvider = ({ children }) => {
         request_id: item.id,
         request_status: item.status,
         request_type: item.type,
-        company: "XYZ Corp.",
+        company: item.asset.company_name,
         requester: item.client.name,
         device_model: item.asset.model,
         description: item.description,
@@ -137,6 +139,8 @@ const RequestProvider = ({ children }) => {
           const updated = [...prev];
           updated[existingIndex] = formattedRequest;
           
+
+          console.log(formattedRequest);
           // Show update notification
           toast("Service Request Updated", {
             description: `${formattedRequest.request_type} - ${formattedRequest.device_model}`,
