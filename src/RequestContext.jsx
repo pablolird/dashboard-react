@@ -156,6 +156,36 @@ const RequestProvider = ({ children }) => {
       return;
     }
 
+        if (updateData.type === "TECHNICIAN_MEDIA_ADDED") {
+      const requestId = updateData.serviceRequestId;
+
+      setLocalRequests((prev) => {
+        const existingIndex = prev.findIndex((r) => r.request_id === requestId);
+
+        if (existingIndex !== -1) {
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            technician_media: updateData.technician_media,
+          };
+
+          toast("Media Added to Request", {
+            description: `${updateData.technician_media.length} file(s) added`,
+            action: {
+              label: "Dismiss",
+              onClick: () => {},
+            },
+          });
+
+          return updated;
+        }
+
+        return prev;
+      });
+
+      return;
+    }
+
     if (!requestId) {
       console.error("No request ID found in update data:", updateData);
       return;

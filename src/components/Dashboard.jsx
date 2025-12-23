@@ -3,6 +3,8 @@ import { DataTable } from "./ui/data-table";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useRequestState } from "../RequestContext";
 import SubmitActivity from "./SubmitActivity";
+import ResolveActivity from "./ResolveActivity";
+import ActivityDetails from "./ActivityDetails";
 import DefaultHeader from "./ui/default-header";
 import { WifiOff } from "lucide-react";
 import { Wifi } from "lucide-react";
@@ -119,6 +121,100 @@ const inprogress_columns = [
   }),
 ];
 
+const resolved_columns = [
+  columnHelper.accessor("scheduled_date", {
+    header: (info) => <DefaultHeader info={info} name={"Date Solved"} />,
+    cell: (info) => {
+      const isoDate = info.getValue();
+      if (!isoDate) return "N/A";
+      const formatted = new Date(isoDate).toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      return formatted;
+    },
+  }),
+  columnHelper.accessor("company", {
+    header: (info) => <DefaultHeader info={info} name={"Company"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("requester", {
+    header: (info) => <DefaultHeader info={info} name={"Requester"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("device_model", {
+    header: (info) => <DefaultHeader info={info} name={"Device Model"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("technician_notes", {
+    header: (info) => <DefaultHeader info={info} name={"Technician Notes"} />,
+    cell: (info) => {
+      const value = info.getValue();
+      if (!value) return "No notes";
+      return value.length > 30 ? value.slice(0, 30) + "…" : value;
+    },
+  }),
+  columnHelper.accessor("technician", {
+    header: (info) => <DefaultHeader info={info} name={"Technician"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("resolve_activity", {
+    header: () => "Resolve",
+    cell: (info) => <ResolveActivity request={info.row.original} />,
+  }),
+];
+
+const closed_columns = [
+  columnHelper.accessor("scheduled_date", {
+    header: (info) => <DefaultHeader info={info} name={"Date Solved"} />,
+    cell: (info) => {
+      const isoDate = info.getValue();
+      if (!isoDate) return "N/A";
+      const formatted = new Date(isoDate).toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      return formatted;
+    },
+  }),
+  columnHelper.accessor("company", {
+    header: (info) => <DefaultHeader info={info} name={"Company"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("requester", {
+    header: (info) => <DefaultHeader info={info} name={"Requester"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("device_model", {
+    header: (info) => <DefaultHeader info={info} name={"Device Model"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("technician_notes", {
+    header: (info) => <DefaultHeader info={info} name={"Technician Notes"} />,
+    cell: (info) => {
+      const value = info.getValue();
+      if (!value) return "No notes";
+      return value.length > 30 ? value.slice(0, 30) + "…" : value;
+    },
+  }),
+  columnHelper.accessor("technician", {
+    header: (info) => <DefaultHeader info={info} name={"Technician"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("activity_details", {
+    header: () => "Activity Details",
+    cell: (info) => <ActivityDetails request={info.row.original} />,
+  }),
+];
+
 export default function Dashboard() {
   const { requests, isSocketConnected } = useRequestState();
 
@@ -131,7 +227,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="relative w-full h-full  overflow-hidden">
+    <div className="relative w-full h-full overflow-hidden">
       <Toaster></Toaster>
       <Tabs
         defaultValue="pending"
@@ -164,13 +260,13 @@ export default function Dashboard() {
         </TabsContent>
         <TabsContent className="h-full" value="resolved">
           <DataTable
-            columns={scheduled_columns}
+            columns={resolved_columns}
             data={filteredRequests.resolved}
           />
         </TabsContent>
         <TabsContent className="h-full" value="closed">
           <DataTable
-            columns={scheduled_columns}
+            columns={closed_columns}
             data={filteredRequests.closed}
           />
         </TabsContent>
