@@ -15,7 +15,6 @@ import {
 
 export default function SubmitActivity({ request }) {
   const [open, setOpen] = useState(false);
-
   const handleSuccess = () => {
     // Close the dialog when activity is successfully created
     setOpen(false);
@@ -26,7 +25,7 @@ export default function SubmitActivity({ request }) {
       <DialogTrigger asChild>
         <Button>Create</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-5xl">
+      <DialogContent className="sm:max-w-5xl max-h-10/11">
         <DialogHeader>
           <DialogTitle>Create Activity</DialogTitle>
           <DialogDescription>

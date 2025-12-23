@@ -115,7 +115,7 @@ export default function ActivityForm({ request, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!selectedTechnician) {
       setError("Please select a technician");
       return;
@@ -125,25 +125,21 @@ export default function ActivityForm({ request, onSuccess }) {
     setError(null);
 
     try {
-      // Step 1: Assign technician (also sets status to ASSIGNED)
-      await axios.patch(
-        `${apiUrl}/v1/service-requests/${request.request_id}/assign`,
-        { technician_id: selectedTechnician }
-      );
+      let scheduled_at = null;
 
-      // Step 2: Add technician notes if provided
-      if (notes.trim()) {
-        await axios.patch(
-          `${apiUrl}/v1/service-requests/${request.request_id}/technician-notes`,
-          { notes: notes.trim() }
-        );
+      if (selectedDate && selectedTime) {
+        const [hours, minutes] = selectedTime.split(":");
+        const dateTime = new Date(selectedDate);
+        dateTime.setHours(hours, minutes, 0, 0);
+        scheduled_at = dateTime.toISOString();
       }
 
-      // Step 3: Update status to SCHEDULED
-      await axios.patch(
-        `${apiUrl}/v1/service-requests/${request.request_id}/status`,
-        { status: "SCHEDULED" }
-      );
+      await axios.patch(`${apiUrl}/v1/service-requests/${request.request_id}`, {
+        status: "SCHEDULED",
+        technician_id: selectedTechnician,
+        description: notes.trim() || null,
+        scheduled_date : scheduled_at,
+      });
 
       // Success - call the onSuccess callback to close dialog
       if (onSuccess) {
@@ -159,12 +155,14 @@ export default function ActivityForm({ request, onSuccess }) {
 
   return (
     <div className="w-full max-w-md p-5 rounded-md shadow-sm bg-card">
-      <form id="activity-form" className="gap-5 flex flex-col" onSubmit={handleSubmit}>
+      <form
+        id="activity-form"
+        className="gap-5 flex flex-col"
+        onSubmit={handleSubmit}
+      >
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="activity-notes">
-              Notes
-            </FieldLabel>
+            <FieldLabel htmlFor="activity-notes">Notes</FieldLabel>
             <Textarea
               id="activity-notes"
               placeholder="Add notes about the activity or schedule"
@@ -178,20 +176,20 @@ export default function ActivityForm({ request, onSuccess }) {
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="technician-select">Technician</FieldLabel>
-            <Select 
-              value={selectedTechnician} 
+            <Select
+              value={selectedTechnician}
               onValueChange={setSelectedTechnician}
               disabled={loading || submitting}
             >
               <SelectTrigger id="technician-select">
-                <SelectValue 
+                <SelectValue
                   placeholder={
-                    loading 
-                      ? "Loading technicians..." 
-                      : error 
-                      ? "Error loading technicians" 
+                    loading
+                      ? "Loading technicians..."
+                      : error
+                      ? "Error loading technicians"
                       : "Select technician"
-                  } 
+                  }
                 />
               </SelectTrigger>
               <SelectContent>
@@ -202,9 +200,7 @@ export default function ActivityForm({ request, onSuccess }) {
                 ))}
               </SelectContent>
             </Select>
-            {error && (
-              <p className="text-sm text-destructive mt-1">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive mt-1">{error}</p>}
           </Field>
         </FieldGroup>
         <FieldGroup>
@@ -221,11 +217,16 @@ export default function ActivityForm({ request, onSuccess }) {
                     className="w-32 bg-card justify-between font-normal"
                     disabled={submitting}
                   >
-                    {selectedDate ? selectedDate.toLocaleDateString() : "Select date"}
+                    {selectedDate
+                      ? selectedDate.toLocaleDateString()
+                      : "Select date"}
                     <ChevronDownIcon />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                <PopoverContent
+                  className="w-auto overflow-hidden p-0"
+                  align="start"
+                >
                   <Calendar
                     mode="single"
                     selected={selectedDate}
@@ -254,4 +255,4 @@ export default function ActivityForm({ request, onSuccess }) {
       </form>
     </div>
   );
-} 
+}
