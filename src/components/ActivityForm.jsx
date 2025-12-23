@@ -2,15 +2,8 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import {
   Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
   FieldGroup,
   FieldLabel,
-  FieldLegend,
-  FieldSeparator,
-  FieldSet,
-  FieldTitle,
 } from "@/components/ui/field";
 import {
   Select,
@@ -30,57 +23,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { Fragment } from "react";
-
-export function Calendar24() {
-  const [open, setOpen] = React.useState(false);
-  const [date, setDate] = React.useState(undefined);
-
-  return (
-    <div className="flex gap-4">
-      <div className="flex flex-col gap-3">
-        <Label htmlFor="date-picker" className="px-1">
-          Date
-        </Label>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              id="date-picker"
-              className="w-32 bg-card justify-between font-normal"
-            >
-              {date ? date.toLocaleDateString() : "Select date"}
-              <ChevronDownIcon />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={date}
-              captionLayout="dropdown"
-              onSelect={(date) => {
-                setDate(date);
-                setOpen(false);
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-      <div className="flex flex-col gap-3">
-        <Label htmlFor="time-picker" className="px-1">
-          Time
-        </Label>
-        <Input
-          type="time"
-          id="time-picker"
-          step="1"
-          defaultValue="10:30"
-          className="bg-card appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-        />
-      </div>
-    </div>
-  );
-}
+import { useRequestState } from "../RequestContext";
 
 export default function ActivityForm({ request, onSuccess }) {
   const [technicians, setTechnicians] = useState([]);
@@ -88,6 +31,7 @@ export default function ActivityForm({ request, onSuccess }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const apiUrl = import.meta.env.VITE_API_BASE_URL;
+  const { refetchRequests } = useRequestState();
 
   // Form state
   const [selectedTechnician, setSelectedTechnician] = useState("");
@@ -111,7 +55,7 @@ export default function ActivityForm({ request, onSuccess }) {
     };
 
     fetchTechnicians();
-  }, []);
+  }, [apiUrl]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -125,21 +69,37 @@ export default function ActivityForm({ request, onSuccess }) {
     setError(null);
 
     try {
-      let scheduled_at = null;
+      // Build the payload according to backend UpdateServiceRequestDto
+      const payload = {
+        status: "SCHEDULED",
+        technician_id: selectedTechnician,
+      };
+
+      // Add optional fields only if they have values
+      if (notes.trim()) {
+        payload.description = notes.trim();
+      }
 
       if (selectedDate && selectedTime) {
         const [hours, minutes] = selectedTime.split(":");
         const dateTime = new Date(selectedDate);
-        dateTime.setHours(hours, minutes, 0, 0);
-        scheduled_at = dateTime.toISOString();
+        dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        payload.scheduled_date = dateTime.toISOString();
       }
 
-      await axios.patch(`${apiUrl}/v1/service-requests/${request.request_id}`, {
-        status: "SCHEDULED",
-        technician_id: selectedTechnician,
-        description: notes.trim() || null,
-        scheduled_date : scheduled_at,
-      });
+      console.log("Submitting payload:", payload);
+
+      const response = await axios.patch(
+        `${apiUrl}/v1/service-requests/${request.request_id}`,
+        payload
+      );
+
+      console.log("Update response:", response.data);
+
+      // Refetch the requests to ensure we have the latest data
+      if (refetchRequests) {
+        await refetchRequests();
+      }
 
       // Success - call the onSuccess callback to close dialog
       if (onSuccess) {
@@ -147,7 +107,11 @@ export default function ActivityForm({ request, onSuccess }) {
       }
     } catch (err) {
       console.error("Failed to create activity:", err);
-      setError(err.response?.data?.message || "Failed to create activity");
+      setError(
+        err.response?.data?.message || 
+        err.message || 
+        "Failed to create activity"
+      );
     } finally {
       setSubmitting(false);
     }

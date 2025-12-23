@@ -20,7 +20,7 @@ const RequestProvider = ({ children }) => {
 
   const fetchRequests = async () => {
     const res = await axios.get(`${apiUrl}/v1/service-requests`);
-    console.log(res);
+    console.log("Fetched requests:", res);
     const items = res.data.items.map((item) => {
       const date = new Date(item.created_at);
       const formatted = `${(date.getMonth() + 1)
@@ -38,7 +38,11 @@ const RequestProvider = ({ children }) => {
         requester: item.client.name,
         device_model: item.asset.model,
         description: item.description_preview,
-        client_media: item.client_media,
+        client_media: item.client_media || [],
+        technician_media: item.technician_media || [],
+        technician: item.technician ? item.technician.name : null,
+        technician_notes: item.technician_notes || null,
+        scheduled_date: item.scheduled_date || null,
       };
     });
     return items;
@@ -87,11 +91,14 @@ const RequestProvider = ({ children }) => {
       setIsSocketConnected(false);
     });
 
+    socket.on("connect_error", (error) => {
+      console.error("WebSocket connection error:", error);
+      setIsSocketConnected(false);
+    });
+
     // Listen for service request updates
     socket.on("service-request.updated", (data) => {
       console.log("🔔 Service request updated:", data);
-
-      // This is where you'll handle the update
       handleServiceRequestUpdate(data);
     });
 
@@ -101,78 +108,127 @@ const RequestProvider = ({ children }) => {
         socket.disconnect();
       }
     };
-  }, []); // Empty dependency array - only run once
+  }, [apiUrl]);
 
   const handleServiceRequestUpdate = async (updateData) => {
-    // updateData structure from backend:
-    // { serviceRequestId, status, type, createdAt } for new requests
-    // { serviceRequestId, status, technician_id?, updated_at } for updates
-    console.log(updateData);
+    console.log("Processing update:", updateData);
 
-    // Extract the ID - could be either 'id' or 'serviceRequestId' depending on event type
-    const requestId = updateData.serviceRequest.id;
-    console.log(`request-id: ${updateData.id}`);
+    let requestId;
+    let wsRequest = null;
 
-    const item = updateData.serviceRequest;
+    // 1️⃣ Normalize incoming WS payload
+    if (updateData.type === "SERVICE_REQUEST_CREATED") {
+      requestId = updateData.id;
+    } else if (updateData.serviceRequest) {
+      requestId = updateData.serviceRequest.id;
+      wsRequest = updateData.serviceRequest;
+    } else if (updateData.id) {
+      requestId = updateData.id;
+    }
 
-    const date = new Date(item.created_at);
-    const formatted = `${(date.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}/${date
-      .getDate()
-      .toString()
-      .padStart(2, "0")}/${date.getFullYear()}`;
+    if (updateData.type === "CLIENT_MEDIA_ADDED") {
+      const requestId = updateData.serviceRequestId;
 
-    const formattedRequest = {
-      date: formatted,
-      request_id: item.id,
-      request_status: item.status,
-      request_type: item.type,
-      company: item.asset.company_name,
-      requester: item.client.name,
-      device_model: item.asset.model,
-      description: item.description,
-      client_media: item.client_media,
-    };
+      setLocalRequests((prev) => {
+        const existingIndex = prev.findIndex((r) => r.request_id === requestId);
 
-    setLocalRequests((prev) => {
-      // Check if request already exists (update case)
-      const existingIndex = prev.findIndex((r) => r.request_id === requestId);
+        if (existingIndex !== -1) {
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            client_media: updateData.client_media,
+          };
 
-      if (existingIndex !== -1) {
-        // Update existing request
-        const updated = [...prev];
-        updated[existingIndex] = formattedRequest;
-
-        console.log(formattedRequest);
-        // Show update notification
-        toast("Service Request Updated", {
-          description: `${formattedRequest.request_type} - ${formattedRequest.device_model}`,
-          action: {
-            label: "Dismiss",
-            onClick: () => {},
-          },
-        });
-
-        return updated;
-      } else {
-        // New request - add to the beginning
-
-        // Show new request notification
-        toast("New Service Request", {
-          description: `${formattedRequest.request_type} from ${formattedRequest.requester} - ${formattedRequest.device_model}`,
-          action: {
-            label: "Close",
-            onClick: () => {
-              // You can add navigation logic here if needed
-              console.log("View request:", formattedRequest.request_id);
+          toast("Media Added to Request", {
+            description: `${updateData.client_media.length} file(s) added`,
+            action: {
+              label: "Dismiss",
+              onClick: () => {},
             },
-          },
+          });
+
+          return updated;
+        }
+
+        return prev;
+      });
+
+      return;
+    }
+
+    if (!requestId) {
+      console.error("No request ID found in update data:", updateData);
+      return;
+    }
+
+    try {
+      let apiRequest = null;
+
+      // 2️⃣ Fetch from API ONLY if WS payload is incomplete
+      if (!wsRequest || !wsRequest.asset || !wsRequest.client) {
+        const response = await axios.get(
+          `${apiUrl}/v1/service-requests/${requestId}`
+        );
+        apiRequest = response.data;
+      }
+
+      // 3️⃣ Merge WS data OVER API data
+      const item = {
+        ...(apiRequest || {}),
+        ...(wsRequest || {}),
+      };
+
+      // 4️⃣ Format date
+      const createdDate = new Date(item.created_at);
+      const formattedDate = `${(createdDate.getMonth() + 1)
+        .toString()
+        .padStart(2, "0")}/${createdDate
+        .getDate()
+        .toString()
+        .padStart(2, "0")}/${createdDate.getFullYear()}`;
+
+      // 5️⃣ Normalize for UI
+      const formattedRequest = {
+        date: formattedDate,
+        request_id: item.id,
+        request_status: item.status,
+        request_type: item.type,
+        company: item.asset?.company_name || item.asset?.company.name || null,
+        requester: item.client?.name || null,
+        device_model: item.asset?.model || null,
+        description: item.description,
+        client_media: item.client_media || [],
+        technician_media: item.technician_media || [],
+        technician: item.technician?.name || null,
+        technician_notes: item.technician_notes || null,
+        scheduled_date: item.scheduled_date || null,
+      };
+
+      // 6️⃣ Update local state
+      setLocalRequests((prev) => {
+        const index = prev.findIndex((r) => r.request_id === requestId);
+
+        if (index !== -1) {
+          const updated = [...prev];
+          updated[index] = formattedRequest;
+
+          toast("Service Request Updated", {
+            description: `${formattedRequest.request_type} - ${formattedRequest.device_model}`,
+          });
+
+          return updated;
+        }
+
+        toast("New Service Request", {
+          description: `${formattedRequest.request_type} from ${formattedRequest.requester}`,
         });
 
         return [formattedRequest, ...prev];
-      }
-    });
+      });
+    } catch (error) {
+      console.error("Error processing service request update:", error);
+      fetchData(); // safe fallback
+    }
   };
 
   const handleAppRequest = (newRequestData) => {
@@ -187,8 +243,9 @@ const RequestProvider = ({ children }) => {
       value={{
         requests: localRequests,
         handleAppRequest,
-        isSocketConnected, // Expose connection status
-        socketRef, // Expose socket if you need manual control elsewhere
+        isSocketConnected,
+        socketRef,
+        refetchRequests: fetchData, // Expose refetch function
       }}
     >
       {children}

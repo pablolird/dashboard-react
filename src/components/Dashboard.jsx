@@ -7,14 +7,6 @@ import DefaultHeader from "./ui/default-header";
 import { WifiOff } from "lucide-react";
 import { Wifi } from "lucide-react";
 import { Toaster } from "sonner";
-// const fakeRequests = Array.from({ length: 200 }).map((_, i) => ({
-//   date: `2025-01-${(i % 30) + 1}`,
-//   company: `Company ${i}`,
-//   requester: `User ${i}`,
-//   device_model: `Model ${i}`,
-//   description: `This is a long description for item #${i}`,
-//   create_activity: `Created at ${new Date().toLocaleString()}`,
-// }));
 
 const columnHelper = createColumnHelper();
 const pending_columns = [
@@ -48,9 +40,20 @@ const pending_columns = [
 ];
 
 const scheduled_columns = [
-  columnHelper.accessor("date", {
+  columnHelper.accessor("scheduled_date", {
     header: (info) => <DefaultHeader info={info} name={"Scheduled Date"} />,
-    cell: (info) => info.getValue(),
+    cell: (info) => {
+      const isoDate = info.getValue();
+      const formatted = new Date(isoDate).toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      return formatted;
+    },
   }),
   columnHelper.accessor("company", {
     header: (info) => <DefaultHeader info={info} name={"Company"} />,
@@ -68,7 +71,47 @@ const scheduled_columns = [
     header: (info) => <DefaultHeader info={info} name={"Description"} />,
     cell: (info) => info.getValue(),
   }),
-  columnHelper.accessor("assigned_technician", {
+  columnHelper.accessor("technician", {
+    header: (info) => (
+      <DefaultHeader info={info} name={"Assigned Technician"} />
+    ),
+    cell: (info) => info.getValue(),
+  }),
+];
+
+const inprogress_columns = [
+  columnHelper.accessor("scheduled_date", {
+    header: (info) => <DefaultHeader info={info} name={"Scheduled Date"} />,
+    cell: (info) => {
+      const isoDate = info.getValue();
+      const formatted = new Date(isoDate).toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      return formatted;
+    },
+  }),
+  columnHelper.accessor("company", {
+    header: (info) => <DefaultHeader info={info} name={"Company"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("requester", {
+    header: (info) => <DefaultHeader info={info} name={"Requester"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("device_model", {
+    header: (info) => <DefaultHeader info={info} name={"Device Model"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("description", {
+    header: (info) => <DefaultHeader info={info} name={"Description"} />,
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor("technician", {
     header: (info) => (
       <DefaultHeader info={info} name={"Assigned Technician"} />
     ),
@@ -78,12 +121,11 @@ const scheduled_columns = [
 
 export default function Dashboard() {
   const { requests, isSocketConnected } = useRequestState();
-  console.log(isSocketConnected);
 
   const filteredRequests = {
     pending: requests.filter((r) => r.request_status === "PENDING"),
     scheduled: requests.filter((r) => r.request_status === "SCHEDULED"),
-    in_progress: requests.filter((r) => r.request_status === "IN PROGRESS"),
+    in_progress: requests.filter((r) => r.request_status === "IN_PROGRESS"),
     resolved: requests.filter((r) => r.request_status === "RESOLVED"),
     closed: requests.filter((r) => r.request_status === "CLOSED"),
   };
@@ -116,7 +158,7 @@ export default function Dashboard() {
         </TabsContent>
         <TabsContent className="h-full" value="in-progress">
           <DataTable
-            columns={scheduled_columns}
+            columns={inprogress_columns}
             data={filteredRequests.in_progress}
           />
         </TabsContent>
